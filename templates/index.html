@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超级穿越模拟器</title>
+    <script src="/static/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .main-container {
+            display: flex;
+            height: 100vh;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* 左侧面板 */
+        .left-panel {
+            width: 300px;
+            min-width: 280px;
+            background: #16213e;
+            border-right: 1px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            gap: 12px;
+            overflow-y: auto;
+        }
+
+        .left-panel h2 {
+            font-size: 18px;
+            color: #e94560;
+            text-align: center;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .world-info {
+            background: #0f3460;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .world-info .label {
+            color: #e94560;
+            font-weight: bold;
+        }
+
+        .scene-box {
+            background: #0f3460;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 13px;
+            line-height: 1.6;
+            border-left: 3px solid #e94560;
+        }
+
+        .scene-box .scene-title {
+            color: #e94560;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .stats-box {
+            background: #0f3460;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 12px;
+        }
+
+        .stats-box h3 {
+            font-size: 14px;
+            color: #e94560;
+            margin-bottom: 8px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            border-bottom: 1px solid #1a1a2e;
+        }
+
+        .stat-name { color: #aaa; }
+        .stat-value { color: #00ff88; font-weight: bold; }
+
+        .npc-list h3 {
+            font-size: 14px;
+            color: #e94560;
+            margin-bottom: 8px;
+        }
+
+        .npc-item {
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .npc-item:hover { background: #1a3a6e; }
+        .npc-item .npc-name { color: #e94560; font-weight: bold; font-size: 13px; }
+        .npc-item .npc-detail { color: #aaa; margin-top: 2px; }
+        .npc-item.dead { opacity: 0.4; text-decoration: line-through; }
+        .npc-item.absent { opacity: 0.5; }
+
+        /* 右侧聊天区 */
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1a1a2e;
+            min-width: 0;
+        }
+
+        .chat-header {
+            padding: 14px 20px;
+            background: #16213e;
+            border-bottom: 1px solid #0f3460;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chat-header .world-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #e94560;
+        }
+
+        .chat-header .scene-name {
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .end-world-btn {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .end-world-btn:hover { background: #c73e54; }
+
+        .name-edit-btn {
+            background: #0f3460;
+            color: #ffd700;
+            border: 1px solid #0f3460;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .name-edit-btn:hover { border-color: #e94560; color: #e94560; }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .chat-messages::-webkit-scrollbar { width: 6px; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+
+        .message {
+            display: flex;
+            gap: 10px;
+            max-width: 80%;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.player { align-self: flex-end; flex-direction: row-reverse; }
+        .message.npc { align-self: flex-start; }
+        .message.narrator { align-self: center; max-width: 90%; }
+        .message.system { align-self: center; }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .avatar.player { background: #e94560; color: white; }
+        .avatar.npc { background: #0f3460; color: #00ff88; }
+        .avatar.narrator { background: #533483; color: #ffd700; }
+
+        .bubble {
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.6;
+            word-break: break-word;
+        }
+
+        .bubble.player {
+            background: #e94560;
+            color: white;
+            border-radius: 16px 4px 16px 16px;
+        }
+
+        .bubble.npc {
+            background: #0f3460;
+            color: #e0e0e0;
+            border-radius: 4px 16px 16px 16px;
+        }
+
+        .bubble.narrator {
+            background: #2a1a3e;
+            color: #d4b8ff;
+            border-radius: 12px;
+            text-align: center;
+            font-style: italic;
+            border: 1px solid #533483;
+        }
+
+        .bubble.narrator.narrator-plot {
+            background: #1a2a1e;
+            color: #a8d8b8;
+            border: 1px solid #2e5e3e;
+        }
+
+        .bubble.narrator.narrator-hint {
+            background: #2a2a1e;
+            color: #e8d888;
+            border: 1px solid #5e5e2e;
+            font-style: normal;
+            font-size: 13px;
+        }
+
+        .bubble.narrator.narrator-talent {
+            background: #1e2a3e;
+            color: #88c8ff;
+            border: 1px solid #2e5e6e;
+            font-style: normal;
+            font-size: 13px;
+        }
+
+        .bubble.system {
+            background: #333;
+            color: #ffd700;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .speaker-name {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 2px;
+        }
+
+        .message.player .speaker-name { text-align: right; }
+
+        .typing-indicator {
+            align-self: flex-start;
+            display: flex;
+            gap: 10px;
+            padding: 8px 14px;
+            background: #0f3460;
+            border-radius: 4px 16px 16px 16px;
+            font-size: 13px;
+            color: #aaa;
+            animation: fadeIn 0.3s;
+        }
+
+        .typing-dots span {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #e94560;
+            margin: 0 2px;
+            animation: bounce 1.2s infinite;
+        }
+
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-6px); }
+        }
+
+        .thinking-indicator {
+            align-self: center;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            background: rgba(233, 69, 96, 0.1);
+            border: 1px solid rgba(233, 69, 96, 0.25);
+            border-radius: 20px;
+            font-size: 13px;
+            color: #e94560;
+            animation: fadeIn 0.3s;
+        }
+
+        .thinking-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(233, 69, 96, 0.3);
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* 输入区 */
+        .chat-input-area {
+            padding: 12px 20px;
+            background: #16213e;
+            border-top: 1px solid #0f3460;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .chat-input-area textarea {
+            flex: 1;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: #e0e0e0;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            outline: none;
+        }
+
+        .chat-input-area textarea:focus { border-color: #e94560; }
+
+        .chat-input-area button {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .chat-input-area button:hover { background: #c73e54; }
+        .chat-input-area button:disabled { background: #555; cursor: not-allowed; }
+
+        /* 启动界面 */
+        .start-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(ellipse at 50% 30%, #1a2040 0%, #0d0d1a 70%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            flex-direction: column;
+        }
+
+        .start-overlay .start-topbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            padding: 16px;
+            display: flex;
+            justify-content: flex-end;
+            z-index: 101;
+        }
+
+        .start-box {
+            background: rgba(22, 33, 62, 0.85);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            padding: 48px 44px 36px;
+            text-align: center;
+            max-width: 520px;
+            width: 92%;
+            border: 1px solid rgba(233, 69, 96, 0.15);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 80px rgba(233,69,96,0.06);
+        }
+
+        .start-box .starbrand {
+            font-size: 48px;
+            margin-bottom: 12px;
+            line-height: 1;
+        }
+
+        .start-box h1 {
+            font-size: 26px;
+            color: #e0e0e0;
+            margin-bottom: 4px;
+            font-weight: 800;
+            letter-spacing: 2px;
+        }
+
+        .start-box .subtitle {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 28px;
+            letter-spacing: 1px;
+        }
+
+        .start-box .section-label {
+            font-size: 11px;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+
+        .start-box input {
+            width: 100%;
+            background: rgba(26, 26, 46, 0.7);
+            border: 1px solid rgba(15, 52, 96, 0.5);
+            border-radius: 12px;
+            padding: 13px 18px;
+            color: #e0e0e0;
+            font-size: 14px;
+            margin-bottom: 16px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .start-box input:focus { border-color: #e94560; }
+
+        .start-box .btn-start {
+            width: 100%;
+            background: linear-gradient(135deg, #e94560, #c73e54);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+
+        .start-box .btn-start:hover { background: linear-gradient(135deg, #ff5a75, #d94a5e); transform: translateY(-1px); }
+        .start-box .btn-start:disabled { background: #333; cursor: not-allowed; transform: none; }
+
+        .mode-select {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            background: rgba(26, 26, 46, 0.6);
+            border: 2px solid rgba(233, 69, 96, 0.3);
+            border-radius: 14px;
+            padding: 16px 14px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .mode-btn:hover { border-color: rgba(233, 69, 96, 0.6); background: rgba(30, 38, 56, 0.8); }
+        .mode-btn.active { border-color: #e94560; background: rgba(26, 8, 32, 0.8); box-shadow: 0 0 20px rgba(233,69,96,0.2); }
+
+        .mode-icon { font-size: 26px; }
+        .mode-label { color: #aaa; font-size: 14px; font-weight: bold; transition: color 0.3s; }
+        .mode-btn.active .mode-label { color: #e94560; }
+        .mode-desc { color: #555; font-size: 11px; transition: color 0.3s; }
+        .mode-btn.active .mode-desc { color: #aa5570; }
+
+        .saved-worlds {
+            margin-top: 20px;
+            text-align: left;
+            max-height: 260px;
+            overflow-y: auto;
+        }
+
+        .saved-title {
+            color: #ffd700;
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(233,69,96,0.15);
+            letter-spacing: 1px;
+        }
+
+        .saved-item {
+            background: rgba(26, 26, 46, 0.5);
+            border: 1px solid rgba(15, 52, 96, 0.3);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .saved-item:hover { border-color: rgba(233,69,96,0.4); background: rgba(30, 38, 56, 0.6); }
+
+        .saved-item .si-info { flex: 1; min-width: 0; }
+        .saved-item .si-name { color: #e0e0e0; font-size: 14px; font-weight: bold; }
+        .saved-item .si-player { color: #888; font-size: 11px; margin-top: 2px; }
+        .saved-item .si-meta { color: #666; font-size: 11px; }
+        .saved-item .si-badge {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 8px;
+            white-space: nowrap;
+            margin-left: 8px;
+        }
+        .si-badge.ongoing { background: #0f3460; color: #00ff88; }
+        .si-badge.ended { background: #333; color: #888; }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 事件提示 */
+        .event-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #e94560;
+            color: white;
+            padding: 10px 24px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 200;
+            animation: slideDown 0.3s, fadeOut 0.5s 2.5s forwards;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateX(-50%) translateY(-40px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+
+        @keyframes fadeOut { to { opacity: 0; } }
+
+        .start-overlay.hidden { display: none; }
+
+        .settings-btn {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 90;
+            background: #16213e;
+            border: 1px solid #0f3460;
+            color: #aaa;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .settings-btn:hover { color: #e94560; border-color: #e94560; }
+
+        .settings-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 10, 30, 0.9);
+            z-index: 160;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .settings-overlay.hidden { display: none; }
+
+        .settings-panel {
+            background: #16213e;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 520px;
+            max-height: 85vh;
+            overflow-y: auto;
+            border: 1px solid #0f3460;
+            padding: 24px;
+        }
+
+        .settings-panel h3 {
+            color: #e94560;
+            font-size: 18px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .settings-group {
+            margin-bottom: 14px;
+        }
+
+        .settings-group label {
+            display: block;
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+
+        .settings-group input, .settings-group select {
+            width: 100%;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: #e0e0e0;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .settings-group input:focus, .settings-group select:focus {
+            border-color: #e94560;
+        }
+
+        .settings-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .settings-row .settings-group { flex: 1; }
+
+        .settings-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .settings-actions button {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .settings-save {
+            background: #e94560;
+            color: white;
+        }
+
+        .settings-save:hover { background: #c73e54; }
+
+        .settings-cancel {
+            background: #333;
+            color: #aaa;
+        }
+
+        .settings-cancel:hover { background: #444; }
+
+        .novel-btn {
+            background: #533483;
+            color: #ffd700;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-right: 8px;
+        }
+
+        .novel-btn:hover { background: #6a4494; }
+        .novel-btn.has-new { animation: glow 1.5s infinite; }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 4px #ffd700; }
+            50% { box-shadow: 0 0 16px #ffd700, 0 0 24px #e94560; }
+        }
+
+        .novel-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 10, 30, 0.92);
+            z-index: 150;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s;
+        }
+
+        .novel-overlay.hidden { display: none; }
+
+        .novel-panel {
+            background: #16213e;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 750px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #0f3460;
+            box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+        }
+
+        .novel-panel-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid #0f3460;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .novel-panel-header h2 {
+            color: #ffd700;
+            font-size: 20px;
+            margin: 0;
+        }
+
+        .novel-panel-header .close-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .novel-panel-header .close-btn:hover { color: #e94560; }
+
+        .novel-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            border-bottom: 1px solid #0f3460;
+            padding: 8px 12px;
+        }
+
+        .novel-tab {
+            padding: 8px 18px;
+            cursor: pointer;
+            color: #aaa;
+            font-size: 14px;
+            white-space: nowrap;
+            border: 1px solid rgba(15, 52, 96, 0.5);
+            border-radius: 8px 8px 0 0;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            background: rgba(15, 52, 96, 0.25);
+            min-width: 70px;
+            text-align: center;
+        }
+
+        .novel-tab:hover {
+            color: #e0e0e0;
+            background: rgba(15, 52, 96, 0.5);
+            border-color: rgba(233, 69, 96, 0.3);
+        }
+
+        .novel-tab.active {
+            color: #ffd700;
+            border-bottom-color: #e94560;
+            background: rgba(233, 69, 96, 0.12);
+            border-color: rgba(233, 69, 96, 0.4);
+            font-weight: bold;
+        }
+
+        .novel-tab.final {
+            color: #e94560;
+            border-color: rgba(233, 69, 96, 0.3);
+        }
+
+        .novel-tab.final.active {
+            color: #e94560;
+            font-weight: bold;
+            border-bottom-color: #e94560;
+        }
+
+        .novel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px 36px;
+            color: #c8c0d0;
+            font-size: 16px;
+            line-height: 2.2;
+            font-family: "Noto Serif SC", "STSong", "SimSun", "Microsoft YaHei", serif;
+            letter-spacing: 0.5px;
+            background: linear-gradient(180deg, rgba(22,33,62,0.6) 0%, rgba(26,26,46,0.9) 100%);
+        }
+
+        .novel-content::-webkit-scrollbar { width: 6px; }
+        .novel-content::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+
+        .novel-content .chapter-title {
+            font-size: 26px;
+            color: #ffd700;
+            text-align: center;
+            margin-bottom: 4px;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(255,215,0,0.3);
+        }
+
+        .novel-content .chapter-meta {
+            text-align: center;
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 32px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(233,69,96,0.2);
+            letter-spacing: 1px;
+        }
+
+        .novel-content p {
+            text-indent: 2em;
+            margin-bottom: 14px;
+        }
+
+        .novel-placeholder {
+            text-align: center;
+            color: #666;
+            padding: 60px 20px;
+            font-size: 16px;
+            line-height: 2;
+        }
+
+        .novel-chapter-badge {
+            display: inline-block;
+            background: #e94560;
+            color: white;
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+
+        .talent-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(ellipse at 50% 30%, #1a2040 0%, #0d0d1a 70%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 120;
+            flex-direction: column;
+            animation: fadeIn 0.4s;
+        }
+
+        .talent-overlay.hidden { display: none; }
+
+        .talent-panel {
+            background: rgba(22, 33, 62, 0.92);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 32px 28px 24px;
+            text-align: center;
+            max-width: 680px;
+            width: 94%;
+            border: 1px solid rgba(233, 69, 96, 0.2);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 80px rgba(233,69,96,0.08);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .talent-panel h2 {
+            color: #ffd700;
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+
+        .talent-panel .talent-subtitle {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+
+        .talent-panel .talent-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .talent-card {
+            background: rgba(15, 52, 96, 0.5);
+            border: 2px solid rgba(15, 52, 96, 0.6);
+            border-radius: 12px;
+            padding: 12px 14px;
+            cursor: pointer;
+            transition: all 0.25s;
+            text-align: left;
+            position: relative;
+        }
+
+        .talent-card:hover { border-color: rgba(233, 69, 96, 0.4); background: rgba(25, 60, 100, 0.6); }
+
+        .talent-card.selected {
+            border-color: #e94560;
+            background: rgba(233, 69, 96, 0.15);
+            box-shadow: 0 0 16px rgba(233, 69, 96, 0.25);
+        }
+
+        .talent-card .talent-type {
+            display: inline-block;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .talent-type.combat { background: #c0392b; color: #ff6b6b; }
+        .talent-type.divine { background: #8e44ad; color: #d4a0ff; }
+        .talent-type.curse { background: #2c3e50; color: #ff6b6b; }
+        .talent-type.artifact { background: #d4a017; color: #ffd700; }
+        .talent-type.cultivation { background: #2471a3; color: #85c1e9; }
+        .talent-type.social { background: #1abc9c; color: #a3e4d7; }
+        .talent-type.mystical { background: #6c3483; color: #d7bde2; }
+        .talent-type.survival { background: #1e8449; color: #a9dfbf; }
+        .talent-type.combat { background: #c0392b; color: #f1948a; }
+        .talent-type.mental { background: #2e86c1; color: #a9cce3; }
+        .talent-type.tech { background: #17a589; color: #a3e4d7; }
+        .talent-type.luck { background: #d68910; color: #f9e79f; }
+        .talent-type.wealth { background: #d4ac0d; color: #f9e79f; }
+        .talent-type.bloodline { background: #943126; color: #f5b7b1; }
+        .talent-type.magic { background: #5b2c6f; color: #d7bde2; }
+        .talent-type.stealth { background: #1b4f72; color: #a9cce3; }
+        .talent-type.healing { background: #28b463; color: #a9dfbf; }
+        .talent-type.instinct { background: #9c640c; color: #f9e79f; }
+        .talent-type.destiny { background: #6c3483; color: #d4a0ff; }
+        .talent-type.personality { background: #5d6d7e; color: #d5d8dc; }
+        .talent-type.crafting { background: #b7950b; color: #fcf3cf; }
+
+        .talent-card .talent-name {
+            color: #e0e0e0;
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .talent-card .talent-desc {
+            color: #999;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .talent-card .talent-check {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid #555;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .talent-card.selected .talent-check {
+            border-color: #e94560;
+            background: #e94560;
+            color: white;
+        }
+
+        .talent-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .talent-actions .btn-confirm {
+            background: linear-gradient(135deg, #e94560, #c73e54);
+            color: white;
+            border: none;
+            padding: 12px 40px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+        }
+
+        .talent-actions .btn-confirm:hover { background: linear-gradient(135deg, #ff5a75, #d94a5e); transform: translateY(-1px); }
+        .talent-actions .btn-confirm:disabled { background: #333; cursor: not-allowed; transform: none; }
+
+        .talent-actions .btn-reroll {
+            background: rgba(15, 52, 96, 0.5);
+            border: 1px solid #0f3460;
+            color: #aaa;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .talent-actions .btn-reroll:hover { border-color: #e94560; color: #e94560; }
+    </style>
+</head>
+<body>
+    <div class="start-overlay" id="startOverlay">
+        <div class="start-topbar">
+            <button class="settings-btn" onclick="openSettings()" style="position:static;" title="模型设置">⚙</button>
+        </div>
+        <div class="start-box">
+            <div class="starbrand">🌌</div>
+            <h1>超级穿越模拟器</h1>
+            <p class="subtitle">AI · 沉浸式角色扮演世界</p>
+
+            <div class="section-label">选择体验模式</div>
+            <div class="mode-select">
+                <button class="mode-btn active" id="modeNormal" onclick="selectMode('normal')">
+                    <span class="mode-icon">🎭</span>
+                    <span class="mode-label">常规扮演</span>
+                    <span class="mode-desc">信息透明 · 展示世界观和角色性格</span>
+                </button>
+                <button class="mode-btn" id="modeImmersive" onclick="selectMode('immersive')">
+                    <span class="mode-icon">🔮</span>
+                    <span class="mode-label">深度体验</span>
+                    <span class="mode-desc">感官描写 · 用视觉听觉触觉感受世界</span>
+                </button>
+            </div>
+
+            <div class="section-label" style="margin-top: 4px;">你的姓名（可选）</div>
+            <input type="text" id="playerNameInput"
+                   placeholder="留空则由AI自动生成..." maxlength="8">
+
+            <div class="section-label" style="margin-top: 4px;">世界偏好（可选）</div>
+            <input type="text" id="suggestionInput"
+                   placeholder="例如：我想去一个魔法与科技并存的世界...">
+            <button class="btn-start" id="startBtn" onclick="startWorld()">开始穿越</button>
+
+            <div class="saved-worlds" id="savedWorlds" style="display:none;">
+                <div class="saved-title">📂 继续冒险</div>
+                <div class="saved-list" id="savedList"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="talent-overlay hidden" id="talentOverlay">
+        <div class="talent-panel">
+            <h2>✨ 命运天赋</h2>
+            <p class="talent-subtitle">选择 <span style="color:#e94560;">3个</span> 天赋伴随你的穿越之旅（已选 <span id="talentSelectedCount" style="color:#ffd700;">0</span>/3）</p>
+            <div class="talent-cards" id="talentCards"></div>
+             <div class="talent-actions">
+                <button class="btn-confirm" id="talentConfirmBtn" onclick="confirmTalents()" disabled>确认天赋并开始穿越</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="novel-overlay hidden" id="novelOverlay">
+        <div class="novel-panel">
+            <div class="novel-panel-header">
+                <h2>📖 <span id="novelWorldTitle">冒险故事</span></h2>
+                <button class="close-btn" onclick="closeNovel()">✕</button>
+            </div>
+            <div class="novel-tabs" id="novelTabs">
+            </div>
+            <div class="novel-content" id="novelContent">
+                <div class="novel-placeholder">
+                    冒险还未开始，小说尚未书写...<br>
+                    在世界中展开对话与行动，AI会将你的冒险写成小说。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-overlay hidden" id="settingsOverlay">
+        <div class="settings-panel">
+            <h3>⚙️ 模型设置</h3>
+            <div class="settings-group">
+                <label>API Key</label>
+                <input type="password" id="setApiKey" placeholder="留空则使用默认Key">
+            </div>
+            <div class="settings-group">
+                <label>API URL</label>
+                <input type="text" id="setApiUrl" placeholder="https://api.deepseek.com/v1/chat/completions">
+            </div>
+            <div class="settings-row">
+                <div class="settings-group">
+                    <label>推理模型</label>
+                    <input type="text" id="setModelReasoner" placeholder="deepseek-v4-pro">
+                </div>
+                <div class="settings-group">
+                    <label>对话模型</label>
+                    <input type="text" id="setModelChat" placeholder="deepseek-v4-flash">
+                </div>
+            </div>
+            <h3 style="margin-top:20px;">🌡️ 温度参数</h3>
+            <div class="settings-row">
+                <div class="settings-group">
+                    <label>创意生成</label>
+                    <input type="number" id="setTempCreative" step="0.05" min="0" max="2" placeholder="0.95">
+                </div>
+                <div class="settings-group">
+                    <label>叙事/情节</label>
+                    <input type="number" id="setTempNarrative" step="0.05" min="0" max="2" placeholder="0.85">
+                </div>
+            </div>
+            <div class="settings-row">
+                <div class="settings-group">
+                    <label>角色对话</label>
+                    <input type="number" id="setTempDialogue" step="0.05" min="0" max="2" placeholder="0.8">
+                </div>
+                <div class="settings-group">
+                    <label>场景导演</label>
+                    <input type="number" id="setTempDirector" step="0.05" min="0" max="2" placeholder="0.3">
+                </div>
+            </div>
+            <div class="settings-group">
+                <label>小说生成</label>
+                <input type="number" id="setTempNovel" step="0.05" min="0" max="2" placeholder="0.9">
+            </div>
+            <h3 style="margin-top:20px;">📏 Max Tokens</h3>
+            <div class="settings-row">
+                <div class="settings-group">
+                    <label>世界观生成</label>
+                    <input type="number" id="setTokensWorld" step="256" min="256" placeholder="4096">
+                </div>
+                <div class="settings-group">
+                    <label>情节推进</label>
+                    <input type="number" id="setTokensPlot" step="256" min="256" placeholder="4096">
+                </div>
+            </div>
+            <div class="settings-row">
+                <div class="settings-group">
+                    <label>角色对话</label>
+                    <input type="number" id="setTokensDialogue" step="256" min="256" placeholder="2048">
+                </div>
+                <div class="settings-group">
+                    <label>旁白叙述</label>
+                    <input type="number" id="setTokensNarrator" step="256" min="256" placeholder="2048">
+                </div>
+            </div>
+            <div class="settings-row">
+                <div class="settings-group">
+                    <label>场景导演</label>
+                    <input type="number" id="setTokensDirector" step="256" min="256" placeholder="1024">
+                </div>
+                <div class="settings-group">
+                    <label>小说生成</label>
+                    <input type="number" id="setTokensNovel" step="256" min="256" placeholder="4096">
+                </div>
+            </div>
+            <div class="settings-actions">
+                <button class="settings-cancel" onclick="closeSettings()">取消</button>
+                <button class="settings-save" onclick="saveSettings()">保存并重启生效</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="left-panel" id="leftPanel">
+            <h2>🌍 世界面板</h2>
+            <div class="world-info" id="worldInfo">
+                <p><span class="label">世界：</span><span id="worldName">---</span></p>
+                <p><span class="label">主题：</span><span id="worldTheme">---</span></p>
+                <p style="margin-top:6px;"><span id="worldDesc">等待世界生成...</span></p>
+            </div>
+            <div class="scene-box" id="sceneBox">
+                <div class="scene-title">📍 <span id="sceneName">---</span></div>
+                <p id="sceneDesc"></p>
+            </div>
+            <div class="stats-box" id="statsBox">
+                <h3>📊 主角属性</h3>
+                <div id="statsContent">
+                    <p style="color:#aaa;">等待角色创建...</p>
+                </div>
+            </div>
+            <div class="npc-list" id="npcList">
+                <h3>👥 在场角色</h3>
+                <div id="npcContent"></div>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <div class="chat-header">
+                <div>
+                    <div class="world-title" id="headerWorldTitle">超级穿越模拟器</div>
+                    <div class="scene-name" id="headerSceneName">等待世界生成...</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <button class="name-edit-btn" id="nameEditBtn" onclick="editPlayerName()" style="display:none;" title="修改姓名">✏️</button>
+                    <button class="novel-btn" id="novelBtn" onclick="openNovel()" style="display:none;">
+                        📖 小说
+                    </button>
+                    <button class="end-world-btn" onclick="endWorld()" id="endWorldBtn" style="display:none;">
+                        结束世界
+                    </button>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="message system">
+                    <div class="bubble system">点击「开始穿越」进入你的冒险世界</div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <textarea id="messageInput" placeholder="输入你的行动或对话..."
+                          rows="1" onkeydown="handleKeyDown(event)" disabled></textarea>
+                <button id="sendBtn" onclick="sendMessage()" disabled>发送</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let isProcessing = false;
+        let playerName = "";
+        let novelChapters = [];
+        let currentMode = "normal";
+        let currentWorldId = null;
+
+        function selectMode(mode) {
+            currentMode = mode;
+            document.getElementById("modeNormal").classList.toggle("active", mode === "normal");
+            document.getElementById("modeImmersive").classList.toggle("active", mode === "immersive");
+        }
+
+        function openSettings() {
+            document.getElementById("settingsOverlay").classList.remove("hidden");
+            fetchSettings();
+        }
+
+        function closeSettings() {
+            document.getElementById("settingsOverlay").classList.add("hidden");
+        }
+
+        function fetchSettings() {
+            fetch("/api/settings")
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+                    const s = data.settings;
+                    setVal("setApiKey", s.api_key);
+                    setVal("setApiUrl", s.api_url);
+                    setVal("setModelReasoner", s.model_reasoner);
+                    setVal("setModelChat", s.model_chat);
+                    setVal("setTempCreative", s.temperature_creative);
+                    setVal("setTempNarrative", s.temperature_narrative);
+                    setVal("setTempDialogue", s.temperature_dialogue);
+                    setVal("setTempDirector", s.temperature_director);
+                    setVal("setTempNovel", s.temperature_novel);
+                    setVal("setTokensWorld", s.max_tokens_world);
+                    setVal("setTokensPlot", s.max_tokens_plot);
+                    setVal("setTokensDialogue", s.max_tokens_dialogue);
+                    setVal("setTokensNarrator", s.max_tokens_narrator);
+                    setVal("setTokensDirector", s.max_tokens_director);
+                    setVal("setTokensNovel", s.max_tokens_novel);
+                });
+        }
+
+        function setVal(id, val) {
+            const el = document.getElementById(id);
+            if (el && val !== undefined && val !== null && val !== "") {
+                el.value = val;
+            }
+        }
+
+        function saveSettings() {
+            const payload = {
+                api_key: document.getElementById("setApiKey").value,
+                api_url: document.getElementById("setApiUrl").value,
+                model_reasoner: document.getElementById("setModelReasoner").value,
+                model_chat: document.getElementById("setModelChat").value,
+                temperature_creative: parseFloat(document.getElementById("setTempCreative").value) || null,
+                temperature_narrative: parseFloat(document.getElementById("setTempNarrative").value) || null,
+                temperature_dialogue: parseFloat(document.getElementById("setTempDialogue").value) || null,
+                temperature_director: parseFloat(document.getElementById("setTempDirector").value) || null,
+                temperature_novel: parseFloat(document.getElementById("setTempNovel").value) || null,
+                max_tokens_world: parseInt(document.getElementById("setTokensWorld").value) || null,
+                max_tokens_plot: parseInt(document.getElementById("setTokensPlot").value) || null,
+                max_tokens_dialogue: parseInt(document.getElementById("setTokensDialogue").value) || null,
+                max_tokens_narrator: parseInt(document.getElementById("setTokensNarrator").value) || null,
+                max_tokens_director: parseInt(document.getElementById("setTokensDirector").value) || null,
+                max_tokens_novel: parseInt(document.getElementById("setTokensNovel").value) || null,
+            };
+
+            fetch("/api/settings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    alert("设置已保存！请重启服务器以应用更改。");
+                    closeSettings();
+                } else {
+                    alert("保存失败：" + (data.error || "未知错误"));
+                }
+            });
+        }
+
+        function fetchSavedWorlds() {
+            fetch("/api/worlds")
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success || !data.worlds.length) return;
+                    const container = document.getElementById("savedWorlds");
+                    container.style.display = "block";
+                    let html = "";
+                    data.worlds.forEach(w => {
+                        const modeBadge = w.mode === "immersive"
+                            ? '<span class="si-badge ongoing">🔮</span>'
+                            : '<span class="si-badge ongoing">🎭</span>';
+                        const badge = w.is_active
+                            ? `<span class="si-badge ongoing">进行中</span>`
+                            : `<span class="si-badge ended">已结束</span>`;
+                        html += `<div class="saved-item" onclick="loadWorld(${w.id})">
+                            <div class="si-info">
+                                <div class="si-name">${escapeHtml(w.name)}</div>
+                                <div class="si-player">${modeBadge} ${escapeHtml(w.player_name)} · ${escapeHtml(w.theme)}</div>
+                                <div class="si-meta">💬 ${w.message_count}条对话 · 📖 ${w.chapter_count}章小说</div>
+                            </div>
+                            ${badge}
+                        </div>`;
+                    });
+                    document.getElementById("savedList").innerHTML = html;
+                })
+                .catch(() => {});
+        }
+
+        function loadWorld(worldId) {
+            const btn = document.getElementById("startBtn");
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner"></span>加载世界中...';
+
+            fetch(`/api/world/load/${worldId}`, { method: "POST" })
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) {
+                        alert("加载失败：" + (data.error || "未知错误"));
+                        btn.disabled = false;
+                        btn.textContent = "开始穿越";
+                        return;
+                    }
+
+                    currentWorldId = data.world.id;
+                    const mode = data.world.mode || "normal";
+                    const isImmersive = mode === "immersive";
+                    currentMode = mode;
+                    socket.emit("register_session", { world_id: currentWorldId, mode: mode });
+
+                    document.getElementById("startOverlay").classList.add("hidden");
+                    document.getElementById("endWorldBtn").style.display = "block";
+                    document.getElementById("novelBtn").style.display = "inline-block";
+                    document.getElementById("nameEditBtn").style.display = "inline-block";
+                    document.getElementById("novelWorldTitle").textContent = data.world.name;
+                    document.getElementById("messageInput").disabled = false;
+                    document.getElementById("sendBtn").disabled = false;
+
+                    if (isImmersive) {
+                        document.getElementById("worldName").textContent = data.world.name;
+                        document.getElementById("worldTheme").textContent = data.world.theme;
+                        document.getElementById("worldDesc").textContent = data.world.scene_description;
+                        document.getElementById("sceneName").textContent = data.world.current_scene;
+                        document.getElementById("sceneDesc").textContent = "";
+                        document.getElementById("headerWorldTitle").textContent = "🌌 " + data.world.name;
+                        document.getElementById("headerSceneName").textContent = "📍 " + data.world.current_scene;
+                        document.getElementById("worldInfo").querySelectorAll("p")[0].style.display = "none";
+                        document.getElementById("statsBox").style.display = "none";
+                        let npcHtml = "";
+                        data.npcs.forEach(npc => {
+                            npcHtml += `<div class="npc-item">
+                                <div class="npc-name">${npc.name}</div>
+                                <div class="npc-detail">${npc.appearance || ""}</div>
+                            </div>`;
+                        });
+                        document.getElementById("npcContent").innerHTML = npcHtml || '<p style="color:#aaa;">暂无可见身影</p>';
+                    } else {
+                        document.getElementById("worldInfo").querySelectorAll("p")[0].style.display = "";
+                        document.getElementById("statsBox").style.display = "";
+                        updateWorldInfo(data.world);
+                        updateNPCList(data.npcs);
+                    }
+
+                    if (data.player) { updatePlayerStats(data.player); playerName = data.player.name; }
+
+                    document.getElementById("chatMessages").innerHTML = "";
+                    if (isImmersive) {
+                        addMessage("system", "系统", `你是「${playerName}」。注意观察你周围的一切。`);
+                    } else {
+                        addMessage("system", "系统", `继续冒险：世界「${data.world.name}」· 你是「${playerName}」。`);
+                    }
+
+                    if (data.messages) {
+                        data.messages.forEach(m => {
+                            if (m.speaker_type === "narrator") {
+                                addNarration(m.content);
+                            } else if (m.speaker_type === "player") {
+                                addMessage("player", m.speaker_name, m.content);
+                            } else if (m.speaker_type === "npc") {
+                                addMessage("npc", m.speaker_name, m.content);
+                            } else {
+                                addMessage("system", m.speaker_name, m.content);
+                            }
+                        });
+                    }
+
+                    document.getElementById("messageInput").focus();
+                })
+                .catch(err => {
+                    alert("请求失败：" + err.message);
+                    btn.disabled = false;
+                    btn.textContent = "开始穿越";
+                });
+        }
+
+        fetchSavedWorlds();
+
+        let selectedTalents = [];
+        let currentTalents = [];
+        let worldStartData = null;
+        let worldStartPromise = null;
+        let worldStartDone = false;
+
+        function showTalentSelection() {
+            selectedTalents = [];
+            updateTalentCount();
+            document.getElementById("talentConfirmBtn").disabled = true;
+
+            fetch("/api/talents/random")
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        currentTalents = data.talents;
+                        renderTalentCards();
+                        document.getElementById("talentOverlay").classList.remove("hidden");
+                        document.getElementById("startBtn").disabled = false;
+                        document.getElementById("startBtn").textContent = "开始穿越";
+                    }
+                })
+                .catch(() => {
+                    document.getElementById("startBtn").disabled = false;
+                    document.getElementById("startBtn").textContent = "开始穿越";
+                });
+        }
+
+        function renderTalentCards() {
+            const container = document.getElementById("talentCards");
+            const typeNames = {
+                combat: "战斗", divine: "神性", curse: "诅咒", artifact: "宝物",
+                cultivation: "修仙", social: "社交", mystical: "秘术", survival: "生存",
+                mental: "心智", tech: "科技", luck: "运气", wealth: "财富",
+                bloodline: "血脉", magic: "魔法", stealth: "潜行", healing: "治愈",
+                instinct: "本能", destiny: "命格", personality: "性格", crafting: "锻造"
+            };
+            let html = "";
+            currentTalents.forEach((t, i) => {
+                const isSel = selectedTalents.some(st => st.name === t.name);
+                const typeName = typeNames[t.type] || t.type;
+                html += `<div class="talent-card${isSel ? ' selected' : ''}" onclick="toggleTalent(${i})">
+                    <span class="talent-type ${t.type}">${typeName}</span>
+                    <div class="talent-name">${escapeHtml(t.name)}</div>
+                    <div class="talent-desc">${escapeHtml(t.desc)}</div>
+                    <div class="talent-check">${isSel ? '✓' : ''}</div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function toggleTalent(index) {
+            const talent = currentTalents[index];
+            if (!talent) return;
+            const alreadySelected = selectedTalents.some(st => st.name === talent.name);
+            if (alreadySelected) {
+                selectedTalents = selectedTalents.filter(st => st.name !== talent.name);
+            } else {
+                if (selectedTalents.length >= 3) {
+                    selectedTalents.shift();
+                }
+                selectedTalents.push(talent);
+            }
+            renderTalentCards();
+            updateTalentCount();
+            document.getElementById("talentConfirmBtn").disabled = (selectedTalents.length !== 3);
+        }
+
+        function updateTalentCount() {
+            document.getElementById("talentSelectedCount").textContent = selectedTalents.length;
+        }
+
+        function confirmTalents() {
+            if (selectedTalents.length !== 3) return;
+            document.getElementById("talentOverlay").classList.add("hidden");
+            document.getElementById("startBtn").disabled = true;
+            document.getElementById("startBtn").innerHTML = '<span class="loading-spinner"></span>正在融合天赋...';
+
+            const playerNameInput = document.getElementById("playerNameInput").value.trim();
+
+            function finalizeAndOpen() {
+                fetch("/api/world/apply_talents", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        talents: selectedTalents,
+                        player_name: playerNameInput
+                    })
+                })
+                .then(r => r.json())
+                .then(talentResult => {
+                    if (!talentResult.success) {
+                        alert("天赋应用失败：" + (talentResult.error || "未知错误"));
+                        document.getElementById("startBtn").disabled = false;
+                        document.getElementById("startBtn").textContent = "开始穿越";
+                        return;
+                    }
+
+                    if (worldStartData) {
+                        worldStartData.player = talentResult.player;
+                    }
+
+                    openWorldWithData(worldStartData);
+                })
+                .catch(err => {
+                    alert("请求失败：" + err.message);
+                    document.getElementById("startBtn").disabled = false;
+                    document.getElementById("startBtn").textContent = "开始穿越";
+                });
+            }
+
+            if (worldStartDone && worldStartData) {
+                finalizeAndOpen();
+            } else if (worldStartPromise) {
+                document.getElementById("startBtn").innerHTML = '<span class="loading-spinner"></span>等待世界生成...';
+                worldStartPromise.then(() => {
+                    finalizeAndOpen();
+                });
+            } else {
+                alert("世界尚未开始生成，请重试");
+                document.getElementById("startBtn").disabled = false;
+                document.getElementById("startBtn").textContent = "开始穿越";
+            }
+        }
+
+        function startWorld() {
+            const btn = document.getElementById("startBtn");
+            const suggestion = document.getElementById("suggestionInput").value;
+            const mode = currentMode;
+            worldStartData = null;
+            worldStartPromise = null;
+            worldStartDone = false;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner"></span>世界与天赋双线加载中...';
+
+            worldStartPromise = fetch("/api/world/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    suggestion: suggestion,
+                    mode: mode,
+                    player_name: document.getElementById("playerNameInput").value.trim(),
+                    talents: []
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    alert("生成失败：" + (data.error || "未知错误"));
+                    btn.disabled = false;
+                    btn.textContent = "开始穿越";
+                    worldStartPromise = null;
+                    return;
+                }
+                worldStartData = data;
+                worldStartDone = true;
+                document.getElementById("talentConfirmBtn").textContent = "确认天赋并开始穿越";
+            })
+            .catch(err => {
+                alert("请求失败：" + err.message);
+                btn.disabled = false;
+                btn.textContent = "开始穿越";
+                worldStartPromise = null;
+            });
+
+            showTalentSelection();
+        }
+
+        function openWorldWithData(data) {
+            if (!data) return;
+            const btn = document.getElementById("startBtn");
+            const mode = data.mode || currentMode;
+
+            currentWorldId = data.world.id;
+
+            socket.emit("register_session", { world_id: currentWorldId, mode: mode });
+
+            document.getElementById("startOverlay").classList.add("hidden");
+            document.getElementById("endWorldBtn").style.display = "block";
+            document.getElementById("novelBtn").style.display = "inline-block";
+            document.getElementById("nameEditBtn").style.display = "inline-block";
+            document.getElementById("novelWorldTitle").textContent = data.world.name;
+            document.getElementById("messageInput").disabled = false;
+            document.getElementById("sendBtn").disabled = false;
+
+            const isImmersive = mode === "immersive";
+
+            if (isImmersive) {
+                document.getElementById("worldName").textContent = data.world.name;
+                document.getElementById("worldTheme").textContent = data.world.theme;
+                document.getElementById("worldDesc").textContent = data.world.scene_description;
+                document.getElementById("sceneName").textContent = data.world.current_scene;
+                document.getElementById("sceneDesc").textContent = "";
+                document.getElementById("headerWorldTitle").textContent = "🌌 " + data.world.name;
+                document.getElementById("headerSceneName").textContent = "📍 " + data.world.current_scene;
+                document.getElementById("worldInfo").querySelectorAll("p")[0].style.display = "none";
+                document.getElementById("statsBox").style.display = "none";
+                document.getElementById("npcContent").innerHTML = "";
+                if (data.npcs_immersive) {
+                    let npcHtml = "";
+                    data.npcs_immersive.forEach(npc => {
+                        npcHtml += `<div class="npc-item">
+                            <div class="npc-name">${npc.name}</div>
+                            <div class="npc-detail">${npc.appearance || ""}</div>
+                        </div>`;
+                    });
+                    document.getElementById("npcContent").innerHTML = npcHtml || '<p style="color:#aaa;">暂无可见身影</p>';
+                }
+            } else {
+                document.getElementById("worldInfo").querySelectorAll("p")[0].style.display = "";
+                document.getElementById("statsBox").style.display = "";
+                updateWorldInfo(data.world);
+                updateNPCList(data.npcs);
+            }
+
+            if (data.player) {
+                updatePlayerStats(data.player);
+                playerName = data.player.name;
+            }
+
+            document.getElementById("chatMessages").innerHTML = "";
+
+            if (isImmersive) {
+                addMessage("system", "系统", `你是「${playerName}」。注意观察你周围的一切。`);
+            } else {
+                addMessage("system", "系统", `世界「${data.world.name}」已生成。你是「${playerName}」。`);
+            }
+
+            addNarration(data.narration);
+
+            if (!isImmersive) {
+                data.npcs.forEach(npc => {
+                    addMessage("system", "系统",
+                        `👤 ${npc.name} - ${npc.personality}`);
+                });
+            }
+
+            document.getElementById("messageInput").focus();
+        }
+
+        function endWorld() {
+            const worldName = document.getElementById("novelWorldTitle").textContent || "当前世界";
+            const userInput = prompt(
+                `⚠️ 此操作将永久删除「${worldName}」的 所有数据！\n\n包括：角色、对话记录、小说章节、情节事件等。\n此操作不可恢复！\n\n输入 DELETE 确认删除：`,
+                ""
+            );
+            if (userInput !== "DELETE") {
+                if (userInput !== null) alert("操作已取消。如需删除请输入 DELETE。");
+                return;
+            }
+
+            document.getElementById("endWorldBtn").disabled = true;
+            document.getElementById("endWorldBtn").textContent = "删除中...";
+
+            fetch("/api/world/end", { method: "POST" })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success) {
+                    alert("删除失败：" + (data.error || "未知错误"));
+                    document.getElementById("endWorldBtn").disabled = false;
+                    document.getElementById("endWorldBtn").textContent = "结束世界";
+                    return;
+                }
+                currentWorldId = null;
+                document.getElementById("startOverlay").classList.remove("hidden");
+                document.getElementById("endWorldBtn").style.display = "none";
+                document.getElementById("novelBtn").style.display = "none";
+                document.getElementById("nameEditBtn").style.display = "none";
+                document.getElementById("messageInput").disabled = true;
+                document.getElementById("sendBtn").disabled = true;
+                document.getElementById("startBtn").disabled = false;
+                document.getElementById("startBtn").textContent = "开始穿越";
+                document.getElementById("statsBox").style.display = "";
+                document.getElementById("worldInfo").querySelectorAll("p")[0].style.display = "";
+                document.getElementById("chatMessages").innerHTML =
+                    '<div class="message system"><div class="bubble system">世界已永久删除。开始新的冒险吧。</div></div>';
+                fetchSavedWorlds();
+            })
+            .catch(() => {
+                alert("删除请求失败，请刷新页面重试");
+                document.getElementById("endWorldBtn").disabled = false;
+                document.getElementById("endWorldBtn").textContent = "结束世界";
+            });
+        }
+
+        function editPlayerName() {
+            const currentName = playerName || "";
+            const newName = prompt("输入新的姓名（1-8字）：", currentName);
+            if (!newName || !newName.trim() || newName.trim() === currentName) return;
+            const name = newName.trim();
+            if (name.length > 8) { alert("姓名不能超过8个字"); return; }
+
+            fetch("/api/player/name", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: name })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    playerName = name;
+                    showToast(`姓名已修改为「${name}」`);
+                } else {
+                    alert(data.error || "修改失败");
+                }
+            });
+        }
+
+        function updateWorldInfo(world) {
+            document.getElementById("worldName").textContent = world.name;
+            document.getElementById("worldTheme").textContent = world.theme;
+            document.getElementById("worldDesc").textContent = world.description;
+            document.getElementById("sceneName").textContent = world.current_scene;
+            document.getElementById("sceneDesc").textContent = world.scene_description;
+            document.getElementById("headerWorldTitle").textContent = "🌌 " + world.name;
+            document.getElementById("headerSceneName").textContent = "📍 " + world.current_scene;
+        }
+
+        function updatePlayerStats(player) {
+            if (!player || !player.stats) return;
+            let stats = player.stats;
+            if (typeof stats === "string") {
+                try { stats = JSON.parse(stats); } catch(e) { return; }
+            }
+            if (Object.keys(stats).length === 0) return;
+
+            const basicStats = ["hp", "max_hp", "strength", "intelligence", "charisma", "agility", "luck", "sanity"];
+            const names = {
+                hp: "生命值", max_hp: "最大生命", strength: "力量",
+                intelligence: "智力", charisma: "魅力", agility: "敏捷",
+                luck: "幸运", sanity: "理智"
+            };
+            let html = "";
+            basicStats.forEach(key => {
+                if (stats[key] !== undefined) {
+                    html += `<div class="stat-row"><span class="stat-name">${names[key] || key}</span><span class="stat-value">${stats[key]}</span></div>`;
+                }
+            });
+            const extras = { defense: "防御", gold: "金币", spiritual_power: "灵力" };
+            Object.keys(extras).forEach(key => {
+                if (stats[key] !== undefined && stats[key] !== 0) {
+                    html += `<div class="stat-row"><span class="stat-name">${extras[key]}</span><span class="stat-value">${stats[key]}</span></div>`;
+                }
+            });
+            if (stats.inventory && stats.inventory.length > 0) {
+                html += `<div class="stat-row"><span class="stat-name">物品</span><span class="stat-value">${stats.inventory.join(", ")}</span></div>`;
+            }
+            if (stats.skills && stats.skills.length > 0) {
+                html += `<div class="stat-row"><span class="stat-name">技能</span><span class="stat-value">${stats.skills.join(", ")}</span></div>`;
+            }
+            if (stats.talents && stats.talents.length > 0) {
+                const talentNames = stats.talents.map(t => t.name).join(" · ");
+                html += `<div class="stat-row"><span class="stat-name">天赋</span><span class="stat-value" style="color:#ffd700;">${talentNames}</span></div>`;
+            }
+            if (stats.status_effects && stats.status_effects.length > 0) {
+                html += `<div class="stat-row"><span class="stat-name">状态</span><span class="stat-value" style="color:#e94560;">${stats.status_effects.join(", ")}</span></div>`;
+            }
+            document.getElementById("statsContent").innerHTML = html || "<p style='color:#aaa;'>无数据</p>";
+        }
+
+        function updateNPCList(npcs) {
+            let html = "";
+            npcs.forEach(npc => {
+                let cls = "npc-item";
+                if (!npc.is_alive) cls += " dead";
+                else if (!npc.is_present) cls += " absent";
+                html += `<div class="${cls}">
+                    <div class="npc-name">${npc.is_alive ? "🟢" : "💀"} ${npc.name}</div>
+                    <div class="npc-detail">${npc.personality}</div>
+                </div>`;
+            });
+            document.getElementById("npcContent").innerHTML = html || "<p style='color:#aaa;'>暂无角色</p>";
+        }
+
+        function addMessage(type, name, content, action, narratorType = null) {
+            const container = document.getElementById("chatMessages");
+            const div = document.createElement("div");
+            div.className = "message " + type;
+
+            let avatarClass = type === "player" ? "player" : (type === "narrator" ? "narrator" : "npc");
+            let avatarText = name.charAt(0);
+
+            if (type === "player") {
+                div.innerHTML = `
+                    <div class="avatar ${avatarClass}">${avatarText}</div>
+                    <div>
+                        <div class="speaker-name" style="text-align:right;">${name}</div>
+                        <div class="bubble ${type}">${escapeHtml(content)}</div>
+                    </div>`;
+            } else if (type === "narrator") {
+                const nType = narratorType || "action";
+                const prefixMap = { action: "🎭", plot: "⚡", hint: "💡", talent: "✨" };
+                const prefix = prefixMap[nType] || "📖";
+                const nClassMap = { plot: "narrator-plot", hint: "narrator-hint", talent: "narrator-talent" };
+                const nClass = nClassMap[nType] || "";
+                div.innerHTML = `
+                    <div class="bubble ${type} ${nClass}">${prefix} ${escapeHtml(content)}</div>`;
+            } else {
+                div.innerHTML = `
+                    <div class="avatar ${avatarClass}">${avatarText}</div>
+                    <div>
+                        <div class="speaker-name">${name}</div>
+                        <div class="bubble ${type}">${escapeHtml(content)}</div>
+                    </div>`;
+            }
+
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addNarration(text, narratorType = "action") {
+            if (!text) return;
+            const paragraphs = text.split("\n").filter(p => p.trim());
+            paragraphs.forEach(p => {
+                addMessage("narrator", "旁白", p.trim(), null, narratorType);
+            });
+        }
+
+        function showTyping(name) {
+            const container = document.getElementById("chatMessages");
+            const div = document.createElement("div");
+            div.className = "typing-indicator";
+            div.id = "typing-" + name;
+            div.innerHTML = `
+                <span>${name} 正在输入</span>
+                <span class="typing-dots"><span></span><span></span><span></span></span>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function removeTyping(name) {
+            const el = document.getElementById("typing-" + name);
+            if (el) el.remove();
+        }
+
+        function showThinking() {
+            const container = document.getElementById("chatMessages");
+            const div = document.createElement("div");
+            div.className = "thinking-indicator";
+            div.id = "thinking-indicator";
+            div.innerHTML = `
+                <span class="thinking-spinner"></span>
+                <span>AI 正在思考...</span>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function removeThinking() {
+            const el = document.getElementById("thinking-indicator");
+            if (el) el.remove();
+        }
+
+        function sendMessage() {
+            if (isProcessing) return;
+            const input = document.getElementById("messageInput");
+            const text = input.value.trim();
+            if (!text) return;
+
+            isProcessing = true;
+            document.getElementById("sendBtn").disabled = true;
+            input.value = "";
+            input.style.height = "auto";
+
+            addMessage("player", playerName || "你", text);
+            showThinking();
+            socket.emit("user_message", { text: text });
+        }
+
+        function handleKeyDown(event) {
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showToast(message) {
+            const toast = document.createElement("div");
+            toast.className = "event-toast";
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function openNovel() {
+            document.getElementById("novelOverlay").classList.remove("hidden");
+            document.getElementById("novelBtn").classList.remove("has-new");
+            fetchNovelChapters();
+        }
+
+        function closeNovel() {
+            document.getElementById("novelOverlay").classList.add("hidden");
+        }
+
+        function fetchNovelChapters() {
+            fetch("/api/novel/chapters")
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        novelChapters = data.chapters;
+                        renderNovelTabs();
+                    }
+                })
+                .catch(err => console.error("获取小说失败:", err));
+        }
+
+        function renderNovelTabs() {
+            const tabsContainer = document.getElementById("novelTabs");
+            const contentContainer = document.getElementById("novelContent");
+
+            let tabsHtml = "";
+            novelChapters.forEach((ch, i) => {
+                const isFinal = ch.is_final ? " final" : "";
+                tabsHtml += `<div class="novel-tab${isFinal}" onclick="showNovelChapter(${i})" id="novelTab${i}">
+                    第${ch.chapter_num}章
+                </div>`;
+            });
+            tabsContainer.innerHTML = tabsHtml;
+
+            if (novelChapters.length > 0) {
+                showNovelChapter(novelChapters.length - 1);
+            } else {
+                contentContainer.innerHTML = '<div class="novel-placeholder">冒险还未开始，小说尚未书写...<br>在世界中展开对话与行动，AI会将你的冒险写成小说。</div>';
+            }
+        }
+
+        function showNovelChapter(index) {
+            const ch = novelChapters[index];
+            if (!ch) return;
+
+            document.querySelectorAll(".novel-tab").forEach(t => t.classList.remove("active"));
+            const tab = document.getElementById("novelTab" + index);
+            if (tab) tab.classList.add("active");
+
+            const contentContainer = document.getElementById("novelContent");
+            const paragraphs = ch.content.split("\n").filter(p => p.trim());
+
+            let html = `<div class="chapter-title">${escapeHtml(ch.title)}</div>`;
+            html += `<div class="chapter-meta">
+                ${ch.is_final ? "【终章】" : ""} 第${ch.chapter_num}章
+                ${ch.summary ? " · " + escapeHtml(ch.summary) : ""}
+            </div>`;
+            paragraphs.forEach(p => {
+                html += `<p>${escapeHtml(p.trim())}</p>`;
+            });
+            contentContainer.innerHTML = html;
+            contentContainer.scrollTop = 0;
+        }
+
+        // Socket events
+        socket.on("message_sent", (data) => {
+            // 用户消息已由本地添加
+        });
+
+        socket.on("typing", (data) => {
+            showTyping(data.name);
+        });
+
+        socket.on("npc_message", (data) => {
+            removeTyping(data.speaker_name);
+            addMessage("npc", data.speaker_name, data.content, data.action);
+        });
+
+        socket.on("narrator_message", (data) => {
+            const ntype = data.narrator_type || "action";
+            addNarration(data.content, ntype);
+        });
+
+        socket.on("character_change", (data) => {
+            if (data.type === "die") {
+                showToast(`💀 ${data.name} 死亡 - ${data.reason}`);
+            } else if (data.type === "leave") {
+                showToast(`🚶 ${data.name} 离开了 - ${data.reason}`);
+            } else if (data.type === "appear") {
+                showToast(`👋 ${data.name} 出现了 - ${data.reason}`);
+            } else if (data.type === "revive") {
+                showToast(`✨ ${data.name} 复活了 - ${data.reason}`);
+            }
+            socket.emit("get_state");
+        });
+
+        socket.on("state", (data) => {
+            if (!data.has_world) return;
+
+            const isImmersive = data.mode === "immersive";
+
+            if (isImmersive) {
+                document.getElementById("statsBox").style.display = "none";
+                document.getElementById("worldInfo").querySelectorAll("p")[0].style.display = "none";
+            } else {
+                document.getElementById("statsBox").style.display = "";
+                document.getElementById("worldInfo").querySelectorAll("p")[0].style.display = "";
+            }
+
+            if (data.world) {
+                if (isImmersive) {
+                    document.getElementById("worldName").textContent = data.world.name;
+                    document.getElementById("worldTheme").textContent = data.world.theme;
+                    document.getElementById("worldDesc").textContent = data.world.scene_description;
+                } else {
+                    updateWorldInfo(data.world);
+                }
+                document.getElementById("sceneName").textContent = data.world.current_scene;
+                document.getElementById("sceneDesc").textContent = data.world.scene_description || "";
+                document.getElementById("headerSceneName").textContent = "📍 " + data.world.current_scene;
+            }
+
+            if (data.player) {
+                playerName = data.player.name;
+                updatePlayerStats(data.player);
+            }
+
+            if (data.npcs) {
+                if (isImmersive) {
+                    let npcHtml = "";
+                    data.npcs.forEach(npc => {
+                        const cls = npc.is_alive ? "" : " dead";
+                        npcHtml += `<div class="npc-item${cls}">
+                            <div class="npc-name">${npc.name}</div>
+                            <div class="npc-detail">${npc.appearance || ""}</div>
+                        </div>`;
+                    });
+                    document.getElementById("npcContent").innerHTML = npcHtml || '<p style="color:#aaa;">暂无可见身影</p>';
+                } else {
+                    updateNPCList(data.npcs);
+                }
+            }
+        });
+
+        socket.on("scene_change", (data) => {
+            showToast(`📍 场景切换：${data.new_scene}`);
+            document.getElementById("sceneName").textContent = data.new_scene;
+            document.getElementById("sceneDesc").textContent = data.description;
+            document.getElementById("headerSceneName").textContent = "📍 " + data.new_scene;
+            if (data.transition) {
+                addNarration(data.transition);
+            }
+        });
+
+        socket.on("stats_update", (data) => {
+            if (data.stats) {
+                updatePlayerStats({ stats: data.stats });
+            }
+            if (data.reason) {
+                showToast(`📊 属性变化：${data.reason}`);
+            }
+        });
+
+        socket.on("plot_event", (data) => {
+            if (data.title) {
+                addMessage("system", "情节", `⚡ ${data.title}：${data.description}`);
+            }
+        });
+
+        socket.on("plot_twist", (data) => {
+            showToast(`🎲 剧情转折！${data.reason}`);
+            if (data.narrator_comment) {
+                addNarration(data.narrator_comment, "plot");
+            }
+        });
+
+        socket.on("novel_chapter", (data) => {
+            if (data.chapter_num) {
+                showToast(`📖 第${data.chapter_num}章「${data.title}」已生成`);
+                document.getElementById("novelBtn").classList.add("has-new");
+            }
+        });
+
+        socket.on("world_ended", (data) => {
+            removeThinking();
+            alert(data.message || "世界已终结。");
+            document.getElementById("startOverlay").classList.remove("hidden");
+            document.getElementById("endWorldBtn").style.display = "none";
+            document.getElementById("novelBtn").style.display = "none";
+            document.getElementById("nameEditBtn").style.display = "none";
+            document.getElementById("messageInput").disabled = true;
+            document.getElementById("sendBtn").disabled = true;
+            document.getElementById("startBtn").disabled = false;
+            document.getElementById("startBtn").textContent = "开始穿越";
+            document.getElementById("statsBox").style.display = "";
+            document.getElementById("worldInfo").querySelectorAll("p")[0].style.display = "";
+            document.getElementById("chatMessages").innerHTML =
+                '<div class="message system"><div class="bubble system" style="color:#e94560;">💀 你的旅程以死亡告终。开始新的冒险吧。</div></div>';
+            isProcessing = false;
+            fetchSavedWorlds();
+        });
+
+        socket.on("action_feedback", (data) => {
+            if (data.type === "restrained") {
+                showToast("⛓️ " + data.message);
+            } else if (data.type === "rescued") {
+                showToast("🆓 " + data.message);
+            }
+        });
+
+        socket.on("processing_done", (data) => {
+            isProcessing = false;
+            removeThinking();
+            document.getElementById("sendBtn").disabled = false;
+            document.getElementById("messageInput").focus();
+            socket.emit("get_state");
+        });
+
+        socket.on("error", (data) => {
+            isProcessing = false;
+            removeThinking();
+            document.getElementById("sendBtn").disabled = false;
+            alert("错误：" + data.message);
+        });
+
+        // 自动调整输入框高度
+        document.getElementById("messageInput").addEventListener("input", function() {
+            this.style.height = "auto";
+            this.style.height = Math.min(this.scrollHeight, 120) + "px";
+        });
+    </script>
+    <button class="settings-btn" onclick="openSettings()" title="模型设置">⚙</button>
+</body>
+</html>
