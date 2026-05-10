@@ -97,7 +97,7 @@ python run.py
 # 4. Open browser
 # http://localhost:5000
 ```
-
+Or download the EXE version directly.
 ### Architecture
 
 ```
@@ -221,7 +221,7 @@ python run.py
 # 4. 打开浏览器
 # http://localhost:5000
 ```
-
+或者直接下载exe版本
 ### 项目架构
 
 ```

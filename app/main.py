@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import time
 import threading
 import random
@@ -9,7 +10,10 @@ from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 import datetime
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if getattr(sys, 'frozen', False):
+    PROJECT_ROOT = sys._MEIPASS
+else:
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 from app.database import Session, engine
 from app.models import Base, World, Character, Message, MemoryEntry, NovelChapter, PlotEvent
@@ -377,6 +381,8 @@ def get_novel_chapters():
 
 @socketio.on("user_message")
 def handle_user_message(data):
+    from flask import request as flask_req
+    sid = flask_req.sid
     world_id = _get_world_id()
     if not world_id:
         world_id = session.get("world_id")
@@ -514,6 +520,40 @@ def handle_user_message(data):
                     "description": scene_effect.get("new_scene_desc", ""),
                     "transition": scene_effect.get("atmosphere_change", "")
                 })
+
+                present_npcs_scene = db_session.query(Character).filter(
+                    Character.world_id == world_id,
+                    Character.role_type == "npc",
+                    Character.is_present == 1
+                ).all()
+                for npc in present_npcs_scene:
+                    if random.random() < 0.4:
+                        npc.is_present = 0
+                        save_memory(npc.id, "departure", f"场景转换为{world.current_scene}，离开", importance=1)
+                        emit("character_change", {
+                            "name": npc.name,
+                            "type": "leave",
+                            "reason": "随着场景转换而离开"
+                        })
+
+                absent_npcs_scene = db_session.query(Character).filter(
+                    Character.world_id == world_id,
+                    Character.role_type == "npc",
+                    Character.is_present == 0,
+                    Character.is_alive == 1
+                ).all()
+                if absent_npcs_scene:
+                    count = min(2, len(absent_npcs_scene))
+                    new_arrivals = random.sample(absent_npcs_scene, count)
+                    for npc in new_arrivals:
+                        npc.is_present = 1
+                        save_memory(npc.id, "arrival", f"出现在{world.current_scene}", importance=1)
+                        emit("character_change", {
+                            "name": npc.name,
+                            "type": "appear",
+                            "reason": "出现在新场景中"
+                        })
+                db_session.commit()
 
             player_affects = (review_result or {}).get("player_affects_npc")
             if player_affects and player_affects.get("affected_npc"):
@@ -793,7 +833,7 @@ def handle_user_message(data):
         if not responders:
             plot_result = PlotEngine.check_and_advance(world_id, round_num, recent_messages)
             PlotEngine._emit_plot_events(plot_result, db_session, world_id, player, round_num)
-            _handle_novel_generation(world_id, round_num, plot_result, force_reason=novel_trigger_reason)
+            _handle_novel_generation(world_id, round_num, plot_result, sid, force_reason=novel_trigger_reason)
             emit("processing_done", {"message": "no_response"})
             return
 
@@ -841,7 +881,7 @@ def handle_user_message(data):
 
         plot_result = PlotEngine.check_and_advance(world_id, round_num, recent_messages)
         PlotEngine._emit_plot_events(plot_result, db_session, world_id, player, round_num)
-        _handle_novel_generation(world_id, round_num, plot_result, force_reason=novel_trigger_reason)
+        _handle_novel_generation(world_id, round_num, plot_result, sid, force_reason=novel_trigger_reason)
 
         player_hint = (review_result or {}).get("player_hint", "").strip()
         if player_hint:
@@ -885,7 +925,7 @@ def handle_user_message(data):
         db_session.close()
 
 
-def _handle_novel_generation(world_id, round_num, plot_result, force_reason=None):
+def _handle_novel_generation(world_id, round_num, plot_result, sid, force_reason=None):
     should_novel = (
         plot_result
         and plot_result.get("should_advance")
@@ -901,9 +941,14 @@ def _handle_novel_generation(world_id, round_num, plot_result, force_reason=None
         reason = force_reason or ("scene_change" if plot_result and plot_result.get("scene_change") else "plot_advance")
         if min_rounds_reached and not should_novel and not force_reason:
             reason = "round_milestone"
-        novel_result = NovelEngine.generate_chapter(world_id, trigger_reason=reason)
-        if novel_result:
-            emit("novel_chapter", novel_result)
+
+        def _run_novel():
+            novel_result = NovelEngine.generate_chapter(world_id, trigger_reason=reason)
+            if novel_result:
+                socketio.emit("novel_chapter", novel_result, room=sid)
+
+        thread = threading.Thread(target=_run_novel, daemon=True)
+        thread.start()
 
 
 @socketio.on("get_state")

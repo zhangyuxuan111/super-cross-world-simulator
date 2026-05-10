@@ -5,7 +5,7 @@ a = Analysis(
     ['run.py'],
     pathex=[],
     binaries=[],
-    datas=[('templates/index.html', 'templates'), ('app', 'app'), ('config.py', '.')],
+    datas=[('templates/index.html', 'templates'), ('static', 'static'), ('app', 'app'), ('config.py', '.')],
     hiddenimports=['flask_socketio', 'engineio.async_drivers.threading', 'sqlalchemy.sql.default_comparator', 'charset_normalizer'],
     hookspath=[],
     hooksconfig={},

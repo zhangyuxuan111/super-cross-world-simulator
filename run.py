@@ -1,7 +1,12 @@
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+if getattr(sys, 'frozen', False):
+    base_path = sys._MEIPASS
+else:
+    base_path = os.path.dirname(os.path.abspath(__file__))
+
+sys.path.insert(0, base_path)
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 from app.main import socketio, app

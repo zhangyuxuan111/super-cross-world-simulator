@@ -1,8 +1,12 @@
 import json
 import os
+import sys
 import threading
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if getattr(sys, 'frozen', False):
+    PROJECT_ROOT = sys._MEIPASS
+else:
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SETTINGS_FILE = os.path.join(PROJECT_ROOT, "user_settings.json")
 
 DEFAULTS = {

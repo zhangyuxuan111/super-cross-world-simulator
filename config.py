@@ -1,4 +1,10 @@
 import os
+import sys
+
+if getattr(sys, 'frozen', False):
+    _ROOT = sys._MEIPASS
+else:
+    _ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # ==================== DeepSeek API 配置 ====================
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-e7d70e198163494aa088705653de7194")
@@ -411,7 +417,7 @@ TALENT_POOL = [
 ]
 
 # ==================== 情节配置 ====================
-PLOT_CHECK_INTERVAL = 3  # 每N轮对话检查一次情节推进
+PLOT_CHECK_INTERVAL = 5  # 每N轮对话检查一次情节推进
 PLOT_TWIST_CHANCE = 0.25  # 每次情节检查时，有25%概率强制触发剧情转折
 MAX_MEMORY_ROUNDS = 20   # 每个角色保留最近N轮记忆
 SCENE_MAX_CHARACTERS = 5  # 场景中最多同时存在的角色数
@@ -428,7 +434,7 @@ NOVEL_AUTHOR_NAME = "AI叙写者"    # 作者署名
 # ==================== 运行时配置覆盖 ====================
 def _load_runtime_overrides():
     import json as _json
-    _settings_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_settings.json")
+    _settings_path = os.path.join(_ROOT, "user_settings.json")
     if not os.path.exists(_settings_path):
         return {}
     try:

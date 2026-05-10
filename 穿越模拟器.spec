@@ -5,6 +5,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('templates/index.html', 'templates'),
+        ('static', 'static'),
         ('app', 'app'),
         ('config.py', '.'),
     ],
